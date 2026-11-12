@@ -13,9 +13,30 @@ The notes below on silent failures and their fixes are as much the point as the 
 | [`scripts/Import-Incoming.ps1`](scripts/Import-Incoming.ps1) | Hourly scheduled task. Waits for the staging folder to go quiet, runs beets in a throwaway container to tag and move confident matches into the library, then triggers a Navidrome rescan. |
 | [`navidrome/docker-compose.yml`](navidrome/docker-compose.yml) | Navidrome with an hourly scanner schedule and full purge of missing files. |
 | [`scripts/Check-PodcastAudio.ps1`](scripts/Check-PodcastAudio.ps1) | Read-only ffprobe/ffmpeg pass over a podcast folder that flags unreadable, zero-length, short, truncated, or undecodable files. |
+| [`beets/config.yaml`](beets/config.yaml) | beets config the ingest mounts as `/config`: path format matching the existing library, explicit `musicbrainz` plugin, widened MusicBrainz search, and `lastgenre` settings. |
+| [`beets/beetsplug_local/lastfmkey.py`](beets/beetsplug_local/lastfmkey.py) | Local beets plugin. See [The lastfmkey plugin](#the-lastfmkey-plugin). |
 
-The beets `config.yaml` that `Import-Incoming.ps1` mounts is not included. To run the ingest you
-need your own, with at least `import.move: yes` and `import.quiet: yes`.
+## The lastfmkey plugin
+
+beets' `lastgenre` plugin uses a shared Last.fm API key hard-coded in beets. `lastfmkey.py` does
+three things:
+
+- **Uses your own Last.fm key** from `/config/lastfm-key.txt` (path configurable with
+  `lastfmkey: {keyfile: ...}`). It sets the key at import time, because `lastgenre` builds its
+  Last.fm client when its module is imported, and patches an existing client if `lastgenre` loaded
+  first. With no key file it logs a warning and keeps the shared key.
+- **Skips flagged albums.** Albums or tracks with the flexible attribute `lastgenre_skip` set are
+  left alone by `lastgenre`, which would otherwise write tags from blank database values.
+- **Blocks file writes for flagged items.** A `write` event listener raises `WriteError` before the
+  file is opened, so `write`, `modify`, `import`, and `lastgenre` can update the database but not
+  the file.
+
+It patches beets internals (`plugins.LASTFM_KEY` and `LastGenrePlugin._process`), so it's tied to
+the beets version it was tested on: **beets 2.14.0** (`linuxserver/beets` image, Python 3.12).
+Check it after upgrading beets.
+
+Setup: copy `beets/lastfm-key.txt.example` to `beets/lastfm-key.txt` and put your key in it. The
+real file is in `.gitignore`.
 
 ## Ingest flow
 
@@ -79,7 +100,8 @@ Each of these produced no error. The pipeline looked healthy while doing nothing
 - ffmpeg and ffprobe on `PATH` for `Check-PodcastAudio.ps1`.
 
 Paths (`T:\incoming`, `T:\music`, `D:\Projects\beets\config`) are set at the top of
-`Import-Incoming.ps1`. Change them for your machine.
+`Import-Incoming.ps1`. Change them for your machine; point `$ConfigDir` at this repo's `beets`
+folder.
 
 ## License
 

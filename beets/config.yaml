@@ -1,0 +1,61 @@
+# beets config used by scripts/Import-Incoming.ps1, which mounts this folder as
+# /config, the staging folder as /incoming, and the music library as /library.
+# Goal: reproduce the existing convention exactly:
+#   Pink_Floyd/The_Wall_(1979)/06_Comfortably_Numb.mp3
+
+directory: /library
+library: /config/library.db
+
+import:
+  move: yes          # move out of /incoming, same as Picard does
+  quiet: yes         # non-interactive: apply confident matches, skip doubtful ones
+  quiet_fallback: skip
+  log: /config/import.log
+  write: yes
+
+# The Wall is a 1994 CD of a 1979 album - we want 1979, same gotcha we hit in Picard.
+original_date: yes
+per_disc_numbering: yes
+
+paths:
+  default: $albumartist/$album ($original_year)/$track $title
+  # Multi-disc releases get a disc prefix, matching Picard's
+  # $if($gt(%totaldiscs%,1),%discnumber%-,) - without this, disc 1 and disc 2
+  # both start at 01 and the track numbers collide.
+  disctotal:2..: $albumartist/$album ($original_year)/$disc-$track $title
+  singleton: $artist/$title
+  comp: Various Artists/$album ($original_year)/$track $title
+
+# Applied to each path component. Spaces -> underscores is what makes this
+# match the existing 417 files.
+replace:
+  '[\\/]': _
+  '[<>:"\?\*\|]': _
+  '\s+': _
+  '^\.': _
+  '\.$': _
+
+# Default MusicBrainz search_limit is 5. The Crystal Method "Vegas" and the
+# 16-track Empire Of The Sun "Walking on a Dream" anniversary edition both
+# had their correct release ranked below the top 5, so it was never even
+# considered as a candidate - both scored well under the 0.04 acceptance
+# threshold once visible at limit 25. This only widens the candidate list;
+# it does not loosen the match threshold.
+musicbrainz:
+  search_limit: 25
+
+# local plugin that makes lastgenre use the personal Last.fm key in lastfm-key.txt
+pluginpath: [/config/beetsplug_local]
+plugins: [musicbrainz, lastfmkey, lastgenre]
+
+lastgenre:
+  auto: yes
+  source: album
+  count: 3
+  force: yes
+  keep_existing: no
+  whitelist: yes
+  canonical: no
+  ignorelist:
+    '*':
+      - classic
