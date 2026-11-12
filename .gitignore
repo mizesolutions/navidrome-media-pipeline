@@ -1,0 +1,8 @@
+# Runtime output
+*.log
+
+# Secrets and local data, never committed
+lastfm-key.txt
+*.db
+*.csv
+.env
